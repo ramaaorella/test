@@ -6,6 +6,5 @@ node tshirt
 
 car -> app
 app -> client
-client -> tshirt
-tshirt -> car
+
 @enduml
