@@ -1,15 +1,4 @@
 # test
-Regular **Markdown** here.
 
-<!--
-@startuml firstDiagram
+![your-UML-diagram-name](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://github.com/ramaaorella/test/blob/main/test.puml)
 
-Alice -> Bob: Hello
-Bob -> Alice: Hi!
-	
-@enduml
--->
-
-![](firstDiagram.svg)
-
-Some more markdown.
