@@ -1,13 +1,61 @@
 @startuml testt
-actor client
-node app
-node car
-node tshirt
 
-car -> app
-app -> client
-client -> tshirt
-tshirt -> car
+title Flujo de mensajes salientes
+
+skinparam BoxPadding 10
+!define ARROW https://example.com/icon.png
+legend bottom right
+  |   &#10142; | Synchronous call |
+  |  &#10230; | Asynchronous call |
+
+Texto adicional aquí
+endlegend
+
+actor User
+participant Frontend
+box "Core" #ECECEC
+  participant WebsocketManager
+  queue messagesToProcess as RabbitMQQueue
+  participant MessageService
+  participant PersistanceService
+  database Database
+  participant SpecialIntegrationService
+end box
+
+box "Gateway de Mensajería" #ECECEC
+  participant OutgoingMessageReceiver
+  participant OutgoingMessageSender
+end box
+
+participant ExternalAPI
+note right of ExternalAPI: ExternalAPI models the \nAPIs of Whatsapp, \nFacebook Messenger \nand other external services
+
+User -> Frontend : Envía nuevo mensaje
+Frontend -> WebsocketManager : socket.send(message)
+
+group ref [RabbitMQ Inter-communication]
+  WebsocketManager -> RabbitMQQueue : convertAndSend(\n'messagesToProcess',\nmessage)
+  RabbitMQQueue -> MessageService : receive(message)
+end
+
+/' Acknowledgment? '/
+MessageService -> MessageService : process(message) /' validateAndProcess(message)? '/
+MessageService ->> PersistanceService : //[RabbitMQ Intercomunication]//\nsend(process_message)
+PersistanceService ->> Database : save(process_message)
+MessageService ->> SpecialIntegrationService : //[RabbitMQ Intercomunication]//\nsend(process_message)
+SpecialIntegrationService -> OutgoingMessageReceiver : send(process_message)
+
+OutgoingMessageReceiver ->> OutgoingMessageSender : //[RabbitMQ Intercomunication]//\nsend(process_message)
+OutgoingMessageSender -> ExternalAPI : sendMessage(process_message) /' POST(message)? '/
+
+/' ChannelController -> ChannelAdapter : normalize(new_message.payload)
+ChannelController <-- ChannelAdapter : new_message
+ChannelController -> RabbitMQ : publish(new_message)
+MessageGateway -> RabbitMQ : consume(new_message)
+MessageGateway <-- RabbitMQ : new_message
+MessageGateway -> MQTTClient : publish(new_message)
+MQTTClient -> SpecialIntegrationService
+SpecialIntegrationService -> Orchestrator
+Orchestrator -> MessageService  '/
+
 @enduml
-
-![your-UML-diagram-name](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/ramaaorella/test/main/test.iuml)
