@@ -21,7 +21,7 @@ node "Core" as Core {
 
     component "Special Integration Service" as SpecialIntegrationService
     component "<U+0000>" as aux 
-    hide aux
+
     component "Websocket Manager" as WebsocketManager
 
     SpecialIntegrationService -[hidden]right- aux
