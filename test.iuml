@@ -20,28 +20,26 @@ node "Web Server" as WebServer {
 
 node "Core" as Core {
   component "Gateway" as Gateway
-  together "Integration Services" as IntegrationServices {
+  
     component "Special Integration Service" as SpecialIntegrationService
     component "Websocket Manager" as WebsocketManager
 
     SpecialIntegrationService -[hidden]right- WebsocketManager
-  }
-  together "Business Services" as BusinessServices {
+  
     component "Message Service" as MessageService
     component "Persistance Service" as PersistanceService
     component "Notification Service" as NotificationService
 
     MessageService -[hidden]right- PersistanceService
     PersistanceService -[hidden]right- NotificationService
-  }
-  together "Data Access Services" as DataAccessServices {
+  
     component "Message Repository" as MessageRepository
     component "Notification Repository" as NotificationRepository
     component "User Repository" as UserRepository
 
     MessageRepository -[hidden]right-  NotificationRepository
     NotificationRepository -[hidden]right- UserRepository 
-  }
+  
 
   Gateway -[hidden]down- SpecialIntegrationService
   Gateway -[hidden]down- WebsocketManager
