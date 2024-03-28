@@ -20,7 +20,7 @@ node "Core" as Core {
   component "Gateway" as Gateway
   together "Integration Services" as IntegrationServices {
     component "Special Integration Service" as SpecialIntegrationService
-    component "<U+0000>" as aux /' Used to center connections '/
+    component "<U+0000>" as aux 
     hide aux
     component "Websocket Manager" as WebsocketManager
 
