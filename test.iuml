@@ -1,61 +1,66 @@
-@startuml testt
+@startuml DeploymentDiagram
 
-title Flujo de mensajes salientes
+skinparam defaultTextAlignment center
 
-skinparam BoxPadding 10
-!define ARROW https://example.com/icon.png
-legend bottom right
-  |   &#10142; | Synchronous call |
-  |  &#10230; | Asynchronous call |
+node "Gateway de mensajería" as GatewayMensajeria {
+  component IncomingMessageReceiver
+  queue incomingQueue
+  component IncomingMessageSender
+  component OutgoingMessageReceiver
+  queue outgoingQueue
+  component OutgoingMessageSender
+}
+node "RabbitMQ Broker\n//Gateway de mensajería//" as RabbitMQBrokerGatewayMsj
 
-Texto adicional aquí
-endlegend
+node "//<<device>>//\nClient Browser" as ClientBrowser
 
-actor User
-participant Frontend
-box "Core" #ECECEC
-  participant WebsocketManager
-  queue messagesToProcess as RabbitMQQueue
-  participant MessageService
-  participant PersistanceService
-  database Database
-  participant SpecialIntegrationService
-end box
+node "Web Server" as WebServer {
+  component Frontend
+}
 
-box "Gateway de Mensajería" #ECECEC
-  participant OutgoingMessageReceiver
-  participant OutgoingMessageSender
-end box
+node "Core" as Core {
+  component "Gateway" as Gateway
+  together "Integration Services" as IntegrationServices {
+    component "Special Integration Service" as SpecialIntegrationService
+    component "<U+0000>" as aux /' Used to center connections '/
+    hide aux
+    component "Websocket Manager" as WebsocketManager
 
-participant ExternalAPI
-note right of ExternalAPI: ExternalAPI models the \nAPIs of Whatsapp, \nFacebook Messenger \nand other external services
+    SpecialIntegrationService -[hidden]right- aux
+    aux -[hidden]right- WebsocketManager
+  }
+  together "Business Services" as BusinessServices {
+    component "Message Service" as MessageService
+    component "Persistance Service" as PersistanceService
+    component "Notification Service" as NotificationService
 
-User -> Frontend : Envía nuevo mensaje
-Frontend -> WebsocketManager : socket.send(message)
+    MessageService -[hidden]right- PersistanceService
+    PersistanceService -[hidden]right- NotificationService
+  }
+  together "Data Access Services" as DataAccessServices {
+    component "Message Repository" as MessageRepository
+    component "Notification Repository" as NotificationRepository
+    component "User Repository" as UserRepository
 
-group ref [RabbitMQ Inter-communication]
-  WebsocketManager -> RabbitMQQueue : convertAndSend(\n'messagesToProcess',\nmessage)
-  RabbitMQQueue -> MessageService : receive(message)
-end
+    MessageRepository -[hidden]right-  NotificationRepository
+    NotificationRepository -[hidden]right- UserRepository 
+  }
 
-/' Acknowledgment? '/
-MessageService -> MessageService : process(message) /' validateAndProcess(message)? '/
-MessageService ->> PersistanceService : //[RabbitMQ Intercomunication]//\nsend(process_message)
-PersistanceService ->> Database : save(process_message)
-MessageService ->> SpecialIntegrationService : //[RabbitMQ Intercomunication]//\nsend(process_message)
-SpecialIntegrationService -> OutgoingMessageReceiver : send(process_message)
+  Gateway -[hidden]down- aux
+  aux -[hidden]down- PersistanceService
+  PersistanceService -[hidden]down- NotificationRepository
+}
+node "RabbitMQ Broker\n//Core//" as RabbitMQBrokerCore
 
-OutgoingMessageReceiver ->> OutgoingMessageSender : //[RabbitMQ Intercomunication]//\nsend(process_message)
-OutgoingMessageSender -> ExternalAPI : sendMessage(process_message) /' POST(message)? '/
+Core ..> RabbitMQBrokerCore
 
-/' ChannelController -> ChannelAdapter : normalize(new_message.payload)
-ChannelController <-- ChannelAdapter : new_message
-ChannelController -> RabbitMQ : publish(new_message)
-MessageGateway -> RabbitMQ : consume(new_message)
-MessageGateway <-- RabbitMQ : new_message
-MessageGateway -> MQTTClient : publish(new_message)
-MQTTClient -> SpecialIntegrationService
-SpecialIntegrationService -> Orchestrator
-Orchestrator -> MessageService  '/
+node "Database Server" as DatabaseServer
+
+GatewayMensajeria ..> RabbitMQBrokerGatewayMsj
+GatewayMensajeria -left- Core
+
+ClientBrowser -- WebServer : HTTPS
+WebServer -down- Core : HTTP / Websocket
+Core -down- DatabaseServer : TCP/IP
 
 @enduml
