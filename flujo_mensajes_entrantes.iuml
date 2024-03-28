@@ -1,77 +1,66 @@
-@startuml test
+@startuml DeploymentDiagram
 
-title Flujo de mensajes entrantes
+skinparam defaultTextAlignment center
 
-skinparam BoxPadding 10
+node "Gateway de mensajería" as GatewayMensajeria {
+  component IncomingMessageReceiver
+  queue incomingQueue
+  component IncomingMessageSender
+  component OutgoingMessageReceiver
+  queue outgoingQueue
+  component OutgoingMessageSender
+}
+node "RabbitMQ Broker\n//Gateway de mensajería//" as RabbitMQBrokerGatewayMsj
 
-actor ExternalSystem
+node "//<<device>>//\nClient Browser" as ClientBrowser
 
-box "Gateway de Mensajería" #ECECEC
-  participant IncomingMessageReceiver
-  queue incomingQueue as GatewayIncomingQueue
-  participant IncomingMessageSender
-end box
+node "Web Server" as WebServer {
+  component Frontend
+}
 
-box "Core" #ECECEC
-  participant SpecialIntegrationService
-  queue priorityQueue
-  queue defaultQueue
-  participant MessageService
-  participant SessionService
-  participant WebsocketManager
-  participant PersistanceService
-  database Database
-  participant NotificationService
-end box
+node "Core" as Core {
+  component "Gateway" as Gateway
+  together "Integration Services" as IntegrationServices {
+    component "Special Integration Service" as SpecialIntegrationService
+    component "<U+0000>" as aux /' Used to center connections '/
+    hide aux
+    component "Websocket Manager" as WebsocketManager
 
-participant Frontend
+    SpecialIntegrationService -[hidden]right- aux
+    aux -[hidden]right- WebsocketManager
+  }
+  together "Business Services" as BusinessServices {
+    component "Message Service" as MessageService
+    component "Persistance Service" as PersistanceService
+    component "Notification Service" as NotificationService
 
-ExternalSystem -> IncomingMessageReceiver : \lEnvía mensaje entrante  \t\t\t\nal webhook  
+    MessageService -[hidden]right- PersistanceService
+    PersistanceService -[hidden]right- NotificationService
+  }
+  together "Data Access Services" as DataAccessServices {
+    component "Message Repository" as MessageRepository
+    component "Notification Repository" as NotificationRepository
+    component "User Repository" as UserRepository
 
-group ref [RabbitMQ Inter-communication]
-  IncomingMessageReceiver ->> GatewayIncomingQueue : convertAndSend(\n'incomingQueue',\nmessage)
-  note over IncomingMessageSender: Already subscribed \nto queue
-  GatewayIncomingQueue ->> IncomingMessageSender : receive(message)
-end
+    MessageRepository -[hidden]right-  NotificationRepository
+    NotificationRepository -[hidden]right- UserRepository 
+  }
 
-IncomingMessageSender ->> SpecialIntegrationService : send(message)
-SpecialIntegrationService -> SessionService : get_online_users()
-SpecialIntegrationService <<-- SessionService : online_users
-SpecialIntegrationService -> SpecialIntegrationService : extract_user(message)
+  Gateway -[hidden]down- aux
+  aux -[hidden]down- PersistanceService
+  PersistanceService -[hidden]down- NotificationRepository
+}
+node "RabbitMQ Broker\n//Core//" as RabbitMQBrokerCore
 
-group ref [RabbitMQ Inter-communication with priorization]
-  note over MessageService: Already subscribed \nto both queues
-  alt User is online
-    SpecialIntegrationService -> SpecialIntegrationService : append_websocket_info(message)
-    SpecialIntegrationService ->> priorityQueue : convertAndSend(\n'priorityQueue',\nmessage)
-    priorityQueue ->> MessageService : receive(message)
-  else User is offline
-    SpecialIntegrationService ->> defaultQueue : convertAndSend(\n'defaultQueue',\nmessage)
-    defaultQueue ->> MessageService : receive(message)
-  end
-end
+Core ..> RabbitMQBrokerCore
 
-MessageService -> MessageService : process(message)
-MessageService ->> PersistanceService : //[RabbitMQ Intercomunication]//\nsend(processed_message)
-PersistanceService ->> Database : save(processed_message)
+node "Database Server" as DatabaseServer
 
-alt User is online
-  MessageService ->> WebsocketManager : //[RabbitMQ Intercomunication]//\nsend(processed_message)
-  alt User is still online and websocket channel still open
-    WebsocketManager ->> Frontend : socket.send(processed_message)
-  else Websocket channel is unreachable (User disconnected)
-    WebsocketManager ->> NotificationService : //[RabbitMQ Intercomunication]//\nsend(processed_message)
-  end
-else User is offline
-  MessageService ->> NotificationService : //[RabbitMQ Intercomunication]//\nsend(processed_message)
-end
+GatewayMensajeria ..> RabbitMQBrokerGatewayMsj
+GatewayMensajeria -left- Core
 
-legend bottom right
-Key:
-—▸: Synchronous message
-—>: Asynchronous message
-endlegend
-
-left footer \l*Aclaración: Las flechas cuya etiqueta incluye <i>[RabbitMQ Intercomunication]</i> representan el flujo completo que supone la comunicación asincrónica entre componentes mediante el uso de RabbitMQ.\n   Este flujo se detalla en el frame de referencia (ref), luego se simplifica para evitar redundancias en el diagrama. 
+ClientBrowser -- WebServer : HTTPS
+WebServer -down- Core : HTTP / Websocket
+Core -down- DatabaseServer : TCP/IP
 
 @enduml
