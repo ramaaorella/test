@@ -1,7 +1,5 @@
 @startuml DeploymentDiagram
 
-skinparam defaultTextAlignment center
-
 node "Gateway de mensajería" as GatewayMensajeria {
   component IncomingMessageReceiver
   queue incomingQueue
